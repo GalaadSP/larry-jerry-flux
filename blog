@@ -1,0 +1,332 @@
+import React, { useMemo, useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Separator } from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import { Sparkles, Rss, Plus, Settings, ThumbsUp, BookMarked, Wand2, Filter, Link2, Tag, Search, Heart, ExternalLink, Star, Sun, Moon, BadgeAlert } from "lucide-react";
+
+// -----------------------------
+// Demo data (mocked RSS items)
+// -----------------------------
+const FEEDS: { url: string; title: string; topic: string }[] = [
+  { url: "https://bitcoinmagazine.com/.rss", title: "Bitcoin Magazine", topic: "Crypto" },
+  { url: "https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml", title: "CoinDesk", topic: "Crypto" },
+  { url: "https://www.reuters.com/finance/rss", title: "Reuters Finance", topic: "Macro" },
+  { url: "https://www.ft.com/companies?format=rss", title: "FT Companies", topic: "Macro" },
+  { url: "https://www.lesswrong.com/feed.xml", title: "LessWrong", topic: "IA/Philo" },
+];
+
+const MOCK_ITEMS = [
+  {
+    id: "a1",
+    source: "CoinDesk",
+    title: "WLFI vote un programme de buyback & burn – les marchés restent prudents",
+    url: "https://example.com/wlfi-burn",
+    date: "2025-10-16T12:30:00Z",
+    topic: "Crypto",
+    tags: ["WLFI", "Stablecoins", "Gouvernance"],
+    summary:
+      "Les détenteurs approuvent à >99% un mécanisme de rachat et destruction. Les observateurs pointent toutefois l'opacité du calendrier de vesting et le risque de déverrouillages massifs.",
+    score: 87,
+  },
+  {
+    id: "a2",
+    source: "Reuters",
+    title: "Les rendements US à 10 ans frôlent de nouveaux sommets – le yen vacille",
+    url: "https://example.com/us10y-yen",
+    date: "2025-10-17T06:00:00Z",
+    topic: "Macro",
+    tags: ["UST10Y", "JPY", "Flux de capitaux"],
+    summary:
+      "Poussée des taux longs, arbitrages sur les devises et tensions sur le financement global. Le dollar garde l'ascendant à court terme.",
+    score: 82,
+  },
+  {
+    id: "a3",
+    source: "LessWrong",
+    title: "Anthropic publie une carte de risques émergents liés aux modèles agents",
+    url: "https://example.com/anthropic-map",
+    date: "2025-10-15T20:10:00Z",
+    topic: "IA/Philo",
+    tags: ["Agents IA", "Sûreté", "Interprétabilité"],
+    summary:
+      "Focus sur l'alignement des agents out-of-distribution et le contournement de garde-fous via chaînes d'outils.",
+    score: 76,
+  },
+];
+
+// Simple util for pretty dates
+const fmt = (iso: string) => new Date(iso).toLocaleString();
+
+// -----------------------------
+// Main App Component
+// -----------------------------
+export default function App() {
+  const [query, setQuery] = useState("");
+  const [topic, setTopic] = useState<string | "All">("All");
+  const [dark, setDark] = useState(false);
+  const [feeds, setFeeds] = useState(FEEDS);
+  const [items, setItems] = useState(MOCK_ITEMS);
+  const [aiAggro, setAiAggro] = useState(60); // how spicy the AI summaries are
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+  }, [dark]);
+
+  const filtered = useMemo(() => {
+    return items
+      .filter((i) => (topic === "All" ? true : i.topic === topic))
+      .filter((i) => (query.trim() ? (i.title + i.summary).toLowerCase().includes(query.toLowerCase()) : true))
+      .sort((a, b) => b.score - a.score);
+  }, [items, topic, query]);
+
+  const topics = ["All", ...Array.from(new Set(items.map((i) => i.topic)))];
+
+  function addFeed(url: string, title?: string, topic?: string) {
+    const t = title || new URL(url).hostname.replace("www.", "");
+    setFeeds((prev) => [...prev, { url, title: t, topic: topic || "Divers" }]);
+  }
+
+  function fakeSummarize(text: string) {
+    // playful AI tone knob
+    if (aiAggro > 70) return text + " — TL;DR : ça peut pump, ou se crasher, donc plan de jeu impératif.";
+    if (aiAggro > 40) return text + " — En bref : intéressant, mais garde les stops mentaux affûtés.";
+    return text + " — Conclusion posée : à surveiller, sans se précipiter.";
+  }
+
+  return (
+    <TooltipProvider>
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 text-foreground">
+        <header className="sticky top-0 z-20 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-b">
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Sparkles className="h-6 w-6" />
+              <h1 className="text-xl font-semibold tracking-tight">Larry & Jerry – Flux Actu sur mesure</h1>
+              <Badge variant="secondary" className="ml-2">Prototype</Badge>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Sun className="h-4 w-4" />
+                <Switch checked={dark} onCheckedChange={setDark} />
+                <Moon className="h-4 w-4" />
+              </div>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm"><Plus className="h-4 w-4 mr-1"/>Ajouter un flux</Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Ajouter un flux RSS</DialogTitle>
+                    <DialogDescription>Colle l'URL d'un flux RSS/Atom. On taggera ensuite.</DialogDescription>
+                  </DialogHeader>
+                  <AddFeedForm onAdd={addFeed} />
+                </DialogContent>
+              </Dialog>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon"><Settings className="h-5 w-5"/></Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-72 p-2">
+                  <div className="px-2 py-1.5 text-sm font-medium">Agent IA – Style de résumés</div>
+                  <div className="px-3 pb-3">
+                    <Label className="text-xs">Tonicité</Label>
+                    <Slider value={[aiAggro]} onValueChange={(v)=>setAiAggro(v[0])} min={0} max={100} step={5} />
+                    <p className="mt-2 text-xs text-muted-foreground">0 = neutre, 100 = Jerry mord et ne lâche rien 😈</p>
+                  </div>
+                  <Separator />
+                  <DropdownMenuItem asChild>
+                    <a href="#" onClick={(e)=>e.preventDefault()} className="flex items-center gap-2"><BadgeAlert className="h-4 w-4"/>Détection de red flags (mock)</a>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-12 gap-6">
+          {/* Left column: filters */}
+          <aside className="col-span-12 lg:col-span-3">
+            <Card className="sticky top-20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Filter className="h-4 w-4"/>Filtres</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Recherche</Label>
+                  <div className="relative">
+                    <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
+                    <Input placeholder="mots-clés, tickers, auteurs…" value={query} onChange={(e)=>setQuery(e.target.value)} className="pl-9"/>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Thèmes</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {topics.map((t)=> (
+                      <Button key={t} size="sm" variant={t===topic?"default":"secondary"} onClick={()=>setTopic(t as any)}>
+                        {t}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <Separator/>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><Rss className="h-4 w-4"/>Flux suivis</Label>
+                  <ul className="space-y-2">
+                    {feeds.map((f, i)=> (
+                      <li key={i} className="text-sm flex items-center gap-2">
+                        <Badge variant="outline">{f.topic}</Badge>
+                        <span className="truncate" title={f.title}>{f.title}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
+          </aside>
+
+          {/* Right column: feed */}
+          <section className="col-span-12 lg:col-span-9 space-y-6">
+            <Hero />
+
+            <Tabs defaultValue="news">
+              <TabsList>
+                <TabsTrigger value="news">Actus</TabsTrigger>
+                <TabsTrigger value="watch">Watchlist</TabsTrigger>
+                <TabsTrigger value="notes">Notes</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="news" className="space-y-4">
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {filtered.map((a)=> (
+                    <Card key={a.id} className="group hover:shadow-lg transition-shadow">
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <Badge variant="secondary" className="uppercase tracking-wide text-[10px]">{a.topic}</Badge>
+                          <span className="text-xs text-muted-foreground">{fmt(a.date)}</span>
+                        </div>
+                        <CardTitle className="text-base leading-tight mt-1 line-clamp-2">{a.title}</CardTitle>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant="outline" className="px-1.5 py-0.5"><Tag className="h-3 w-3 mr-1"/> {a.source}</Badge>
+                          {a.tags.map((t)=> <Badge key={t} variant="outline" className="px-1.5 py-0.5">{t}</Badge>)}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <p className="text-sm text-muted-foreground line-clamp-3">{fakeSummarize(a.summary)}</p>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="sm"><ThumbsUp className="h-4 w-4 mr-1"/>Utile</Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Augmente la priorité des articles similaires</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="sm"><BookMarked className="h-4 w-4 mr-1"/>Suivre</Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Ajoute à ta watchlist perso</TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <a href={a.url} target="_blank" className="text-sm inline-flex items-center gap-1 hover:underline">Lire<ExternalLink className="h-3.5 w-3.5"/></a>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="watch">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Watchlist – sujets chauds</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground">
+                    Marque des articles « Suivre » pour les voir ici. On pourra déclencher des alertes (prix, nouveaux articles, citations Twitter, etc.).
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="notes">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Notes rapides</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <Textarea placeholder="Tes déductions, ton plan de trade, les risques à surveiller…"/>
+                    <div className="text-xs text-muted-foreground">Astuce : écris d'abord le plan (entrée / invalidation / prise de profits), puis seulement après tu agis. Le Tanuki Ronchon approuve.</div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </section>
+        </main>
+
+        <footer className="border-t py-8 text-center text-sm text-muted-foreground">
+          <div className="max-w-7xl mx-auto px-4">
+            <p>Prototype conçu pour Larry par Jerry. Tech : React + Tailwind + shadcn/ui. Agrégation RSS, scoring, IA-résumés et alerts en option.</p>
+          </div>
+        </footer>
+      </div>
+    </TooltipProvider>
+  );
+}
+
+function Hero(){
+  return (
+    <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+      <CardHeader className="grid md:grid-cols-2 gap-3 items-center">
+        <div>
+          <CardTitle className="text-2xl md:text-3xl">Ton fil d'actus, sans blabla</CardTitle>
+          <p className="mt-2 text-sm text-muted-foreground max-w-prose">
+            Agrège tes flux RSS, classe par thème, obtiens un résumé mordant façon Jerry, et déclenche des alertes quand ça compte.
+            Tu poses la stratégie, on automatise l'exécution.
+          </p>
+        </div>
+        <div className="flex md:justify-end gap-2">
+          <Button><Wand2 className="h-4 w-4 mr-1"/>Générer le digest du jour</Button>
+          <Button variant="outline"><Star className="h-4 w-4 mr-1"/>Top 10 signaux</Button>
+        </div>
+      </CardHeader>
+    </Card>
+  );
+}
+
+function AddFeedForm({ onAdd }:{ onAdd:(url:string,title?:string,topic?:string)=>void }){
+  const [url,setUrl]=useState("");
+  const [title,setTitle]=useState("");
+  const [topic,setTopic]=useState("Divers");
+  return (
+    <div className="space-y-3">
+      <div className="space-y-2">
+        <Label>URL du flux</Label>
+        <Input placeholder="https://…/feed.xml" value={url} onChange={e=>setUrl(e.target.value)} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label>Titre (optionnel)</Label>
+          <Input placeholder="Nom lisible" value={title} onChange={e=>setTitle(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label>Thème</Label>
+          <Input placeholder="Crypto / Macro / IA…" value={topic} onChange={e=>setTopic(e.target.value)} />
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 pt-2">
+        <Button variant="secondary" onClick={()=>{setUrl("");setTitle("");setTopic("Divers");}}>Effacer</Button>
+        <Button onClick={()=>{ if(!url) return; onAdd(url,title,topic); }}><Link2 className="h-4 w-4 mr-1"/>Ajouter</Button>
+      </div>
+      <Separator className="my-2"/>
+      <p className="text-xs text-muted-foreground">Astuce : on peut aussi importer un fichier OPML (liste de flux) et activer des résumés IA automatiques toutes les 2h.</p>
+    </div>
+  );
+}
