@@ -1,45 +1,19 @@
 import React, { useMemo, useState, useEffect } from "react";
 
-const FEEDS = [
-  { url: "https://bitcoinmagazine.com/.rss", title: "Bitcoin Magazine", topic: "Crypto" },
-  { url: "https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml", title: "CoinDesk", topic: "Crypto" },
-  { url: "https://www.reuters.com/finance/rss", title: "Reuters Finance", topic: "Macro" },
-  { url: "https://www.lesswrong.com/feed.xml", title: "LessWrong", topic: "IA/Philo" },
-];
+const API_URL =
+  import.meta.env?.VITE_API_URL ||
+  "https://rss-worker.sapiniere45.workers.dev/news?summarize=true";
 
-const API_URL = import.meta.env?.VITE_API_URL || "https://rss-worker.sapiniere45.workers.dev/news?summarize=true";
+const fmt = (iso) => (iso ? new Date(iso).toLocaleString() : "");
 
 export default function App() {
   const [query, setQuery] = useState("");
   const [topic, setTopic] = useState("All");
   const [items, setItems] = useState([]);
+  const [feeds, setFeeds] = useState([]);
+  const [spice, setSpice] = useState(60);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        setError("");
-        const r = await fetch(API_URL, { headers: { "accept": "application/json" } });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const data = await r.json();
-        setItems(Array.isArray(data) ? data : []);
-      } catch (e) {
-        console.error("API error:", e);
-        setError("Impossible de récupérer les articles (API).");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-  
-export default function App() {
-  const [query, setQuery] = useState("");
-  const [topic, setTopic] = useState("All");
-  const [items, setItems] = useState(items);
-  const [feeds, setFeeds] = useState(FEEDS);
-  const [spice, setSpice] = useState(60);
 
   useEffect(() => {
     document.body.style.fontFamily =
@@ -49,32 +23,67 @@ export default function App() {
     document.body.style.color = "#e6e6e6";
   }, []);
 
+  // Fetch des articles depuis le Worker
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const r = await fetch(API_URL, { headers: { accept: "application/json" } });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        const arr = Array.isArray(data) ? data : [];
+        setItems(arr);
+        // extrait une liste de "feeds suivis" visible dans la sidebar
+        const fs = Array.from(
+          new Map(arr.map((a) => [a.source, { title: a.source, topic: a.topic || "Divers" }])).values()
+        );
+        setFeeds(fs);
+      } catch (e) {
+        console.error(e);
+        setError("Impossible de récupérer les articles (API).");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const topics = useMemo(
+    () => ["All", ...Array.from(new Set(items.map((i) => i.topic || "Divers")))],
+    [items]
+  );
+
   const filtered = useMemo(() => {
     return items
-      .filter((i) => (topic === "All" ? true : i.topic === topic))
+      .filter((i) => (topic === "All" ? true : (i.topic || "Divers") === topic))
       .filter((i) =>
         query.trim()
-          ? (i.title + i.summary).toLowerCase().includes(query.toLowerCase())
+          ? (i.title + " " + (i.summary || "") + " " + (i.ai_summary || ""))
+              .toLowerCase()
+              .includes(query.toLowerCase())
           : true
       )
-      .sort((a, b) => b.score - a.score);
+      .sort(
+        (a, b) =>
+          new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
   }, [items, topic, query]);
 
-  const topics = ["All", ...Array.from(new Set(items.map((i) => i.topic)))];
+  function tone(s) {
+    if (!s) return "";
+    if (spice > 70) return s + " — TL;DR: potentiellement nerveux, plan de jeu requis.";
+    if (spice > 40) return s + " — En bref: intéressant, prudence.";
+    return s + " — À suivre sans se précipiter.";
+  }
 
   function addFeed(url, title, t) {
+    if (!url) return;
     try {
       const name = title || new URL(url).hostname.replace("www.", "");
       setFeeds((prev) => [...prev, { url, title: name, topic: t || "Divers" }]);
     } catch {
       alert("URL invalide");
     }
-  }
-
-  function tone(s) {
-    if (spice > 70) return s + " — TL;DR: ça peut pump… ou crasher. Plan de jeu impératif.";
-    if (spice > 40) return s + " — En bref: intéressant, prudence requise.";
-    return s + " — Conclusion: à suivre sans se précipiter.";
   }
 
   return (
@@ -92,7 +101,9 @@ export default function App() {
         }}
       >
         <h1 style={{ margin: 0, fontSize: 22 }}>Larry & Jerry — Flux Actu sur mesure</h1>
-        <small style={{ color: "#9aa4b2" }}>Prototype React + Vite (build Cloudflare Pages)</small>
+        <small style={{ color: "#9aa4b2" }}>
+          Front React + Vite · API: {new URL(API_URL).host}
+        </small>
       </header>
 
       <section style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 24 }}>
@@ -189,10 +200,12 @@ export default function App() {
           >
             <h2 style={{ marginTop: 0 }}>Ton fil d’actus, sans blabla</h2>
             <p style={{ color: "#9aa4b2", marginBottom: 0 }}>
-              Agrège tes flux RSS, classe par thème, résumés mordants façon Jerry, et
-              déclenche des alertes quand ça compte.
+              Agrège des flux RSS, classe par thème, ajoute des résumés IA si dispo.
             </p>
           </div>
+
+          {loading && <div>Chargement…</div>}
+          {error && <div style={{ color: "#ff7676" }}>{error}</div>}
 
           <div
             style={{
@@ -212,14 +225,16 @@ export default function App() {
                 }}
               >
                 <div style={{ fontSize: 12, color: "#9aa4b2" }}>
-                  <b style={{ color: "#8aa1ff" }}>{a.topic}</b> • {fmt(a.date)}
+                  <b style={{ color: "#8aa1ff" }}>{a.topic || "Divers"}</b> • {fmt(a.date)}
                 </div>
                 <h3 style={{ margin: "6px 0 8px", fontSize: 18 }}>{a.title}</h3>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-                  <span style={{ border: "1px solid #263042", borderRadius: 999, padding: "2px 8px" }}>
+                  <span
+                    style={{ border: "1px solid #263042", borderRadius: 999, padding: "2px 8px" }}
+                  >
                     {a.source}
                   </span>
-                  {a.tags.map((t) => (
+                  {(a.tags || []).map((t) => (
                     <span
                       key={t}
                       style={{
@@ -232,7 +247,9 @@ export default function App() {
                     </span>
                   ))}
                 </div>
-                <p style={{ color: "#c6cbd4" }}>{tone(a.summary)}</p>
+                <p style={{ color: "#c6cbd4" }}>
+                  {a.ai_summary ? a.ai_summary : tone(a.summary)}
+                </p>
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
                   <button
                     style={{
@@ -261,7 +278,14 @@ export default function App() {
         </main>
       </section>
 
-      <footer style={{ color: "#9aa4b2", marginTop: 36, padding: "16px 0", borderTop: "1px solid #1f2430" }}>
+      <footer
+        style={{
+          color: "#9aa4b2",
+          marginTop: 36,
+          padding: "16px 0",
+          borderTop: "1px solid #1f2430",
+        }}
+      >
         Prototype par Jerry. Tech : React + Vite. Déploiement Cloudflare Pages.
       </footer>
     </div>
