@@ -7,37 +7,40 @@ const FEEDS = [
   { url: "https://www.lesswrong.com/feed.xml", title: "LessWrong", topic: "IA/Philo" },
 ];
 
-const MOCK_ITEMS = [
-  {
-    id: "a1",
-    source: "CoinDesk",
-    title: "WLFI vote un buyback & burn – marchés prudents",
-    url: "#",
-    date: "2025-10-16T12:30:00Z",
-    topic: "Crypto",
-    tags: ["WLFI", "Gouvernance"],
-    summary: "Adoption >99 %, mais vesting flou et risque de déverrouillages massifs.",
-    score: 87,
-  },
-  {
-    id: "a2",
-    source: "Reuters",
-    title: "Taux US 10 ans en hausse, le yen vacille",
-    url: "#",
-    date: "2025-10-17T06:00:00Z",
-    topic: "Macro",
-    tags: ["UST10Y", "JPY"],
-    summary: "Flux vers le dollar, arbitrages devises, tensions de financement.",
-    score: 82,
-  },
-];
+const API_URL = import.meta.env?.VITE_API_URL || "https://rss-worker.sapiniere45.workers.dev/news?summarize=true";
+
+export default function App() {
+  const [query, setQuery] = useState("");
+  const [topic, setTopic] = useState("All");
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const r = await fetch(API_URL, { headers: { "accept": "application/json" } });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        setItems(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error("API error:", e);
+        setError("Impossible de récupérer les articles (API).");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
 
 const fmt = (iso) => new Date(iso).toLocaleString();
 
 export default function App() {
   const [query, setQuery] = useState("");
   const [topic, setTopic] = useState("All");
-  const [items, setItems] = useState(MOCK_ITEMS);
+  const [items, setItems] = useState(items);
   const [feeds, setFeeds] = useState(FEEDS);
   const [spice, setSpice] = useState(60);
 
