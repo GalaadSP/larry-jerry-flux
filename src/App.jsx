@@ -33,10 +33,7 @@ export default function App() {
       }
     })();
   }, []);
-
-
-const fmt = (iso) => new Date(iso).toLocaleString();
-
+  
 export default function App() {
   const [query, setQuery] = useState("");
   const [topic, setTopic] = useState("All");
